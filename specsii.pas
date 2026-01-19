@@ -3,9 +3,13 @@ program specscii;
 uses Classes, SysUtils;
 
 var
+  i: Integer;
+  outchar: String = '@';
   om: Array of Array of String;
   stc: String;
   ltc: Integer;
+  CustomFont: array[32..127,0..7] of Byte;
+  fontfile: String;
 {$I specfont.inc}
 
 function GetBit(a: Byte; b: Byte): Byte;
@@ -55,7 +59,8 @@ begin
   
   for i := 1 to Length(s) do
   begin
-    RenderCharacter(i-1,ZXFont[Ord(s[i])],ch);
+    if fontfile = '' then RenderCharacter(i-1,ZXFont[Ord(s[i])],ch)
+    else RenderCharacter(i-1,CustomFont[Ord(s[i])],ch)
   end;
   
   for j := 0 to 7 do
@@ -68,12 +73,60 @@ begin
   end;
 end;
 
+procedure LoadFontFile(const fn: String);
+var
+  fs: TFileStream;
+  buf: array[0..767] of Byte;
+  i, ch, row: Integer;
 begin
-  if ParamStr(1) = '' then exit;
-  stc := ParamStr(1);
-  ltc := Length(stc)*8;
-  SetLength(om,ltc+1,8);
-  PrintString(stc,'@');
-  Writeln();
+  fs := TFileStream.Create(fn, fmOpenRead);
+  if fs.Read(buf, 768) <> 768 then
+  begin
+    writeln('Invalid font file?');
+    exit;
+  end;
+
+  i := 0;
+  for ch := 32 to 127 do
+    for row := 0 to 7 do
+    begin
+      CustomFont[ch, row] := buf[i];
+      Inc(i);
+    end;
+
+  fs.Free;
+end;
+
+begin
+  if ParamCount = 0 then Exit;
+  
+  fontfile := '';
+  i := 1;
+  while i <= ParamCount do
+  begin
+    if ParamStr(i).StartsWith('--char=') then
+      outchar := Copy(ParamStr(i), 8, 999)
+    else if ParamStr(i).StartsWith('--font=') then
+      fontfile := Copy(ParamStr(i), 8, 999)
+    else if stc = '' then
+      stc := ParamStr(i);
+    Inc(i);
+  end;
+  
+  if fontfile <> '' then
+  begin
+    if not FileExists(fontfile) then
+    begin
+      writeln('Error: font file not found!');
+      exit;
+    end
+    else LoadFontFile(fontfile);
+  end;
+
+  if stc = '' then Halt;
+
+  ltc := Length(stc) * 8;
+  SetLength(om, ltc + 1, 8);
+  PrintString(stc, outchar);
 end.
 
